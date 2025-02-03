@@ -1,7 +1,7 @@
 from typing import Union
 
-from fastapi import FastAPI, Query, Depends, HTTPException
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi import FastAPI, Query, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from pydantic import BaseModel, Field
 from typing_extensions import Literal
 from enum import Enum
@@ -11,11 +11,13 @@ from datetime import datetime, timedelta
 import jwt
 from . import models
 from db.database import SessionLocal
+from jose import JWTError
 
 SECRET_KEY = "mysecret"
 ALGORITHM = "HS256"
 
 app = FastAPI()
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 def get_db():
     db = SessionLocal()
@@ -60,6 +62,18 @@ def create_user(db: Session, username: str, password: str):
     db.commit()
     db.refresh(db_user)
     return db_user
+
+def get_current_user(token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    username = payload.get("sub")
+    if username is None:
+        raise credentials_exception
+    return username
 
 @app.post("/register/")
 def register(user: UserCreate, db: Session = Depends(get_db)):
