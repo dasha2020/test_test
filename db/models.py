@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, Enum
 from sqlalchemy.orm import relationship
-from db.database import Base
+from .database import Base
 from enum import Enum
 
 
@@ -23,4 +23,17 @@ class User(Base):
     password = Column(String, unique=True)
     role = Column(String, default="customer")
 
+class QuestionDB(Base):
+    __tablename__ = 'questions'
+    
+    id = Column(Integer, primary_key=True, index=True)
+    question_text = Column(String)
 
+class Questions(Base):
+    __tablename__ = 'questions_users'
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user = Column(String)
+    question = Column(String)
+    status = Column(String, default="unread")
+    answer = Column(String, default="No answer")
