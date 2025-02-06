@@ -58,7 +58,7 @@ def authenticate(username: str, password: str, db: Session):
 
 def create_user(username: str, password: str, db: Session):
     hashed_password = pwd_context.hash(password)
-    db_user = models.User(username=username, password=hashed_password, role="customer")
+    db_user = models.User(username=username, password=hashed_password, role="admin")
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
@@ -97,20 +97,25 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
 
 @app.post("/ask_question/")
 def ask_question(your_question: QuestionCreate, current_user: str = Depends(get_current_user), db: Session = Depends(get_db)):
-    new_question = models.Questions(user=current_user, question=your_question.question, status="unread", answer="No asnwer")
-    db.add(new_question)
-    db.commit()
-    db.refresh(new_question)
-    return new_question
+    user = db.query(models.User).filter(models.User.username == current_user).first()
+    if user.role == "customer":
+        new_question = models.Questions(user=current_user, question=your_question.question, status="unread", answer="No asnwer")
+        db.add(new_question)
+        db.commit()
+        db.refresh(new_question)
+        return new_question
+    return {"error": "You're admin, not the user"}
 
 @app.post("/get_questions/")
-def get_questions(current_user: str = Depends(get_current_user), db: Session = Depends(get_db)):
-    all_questions = db.query(models.Questions).filter(models.Questions.user == current_user).all()
-    return all_questions
-
+def get_all_user_questions(current_user: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.username == current_user).first()
+    if user.role == "customer":
+        all_questions = db.query(models.Questions).filter(models.Questions.user == current_user).all()
+        return all_questions
+    return {"error": "You're admin, not the user"}
 
 def get_questions(db: Session):
-    return db.query(models.Questions).all()
+    return db.query(models.Questions).filter(models.Questions.status != "answered").all()
 
 def update_question_enum(db: Session):
     questions = get_questions(db)
@@ -136,3 +141,19 @@ update_question_enum(SessionLocal())
 @app.post("/create-item")
 async def create_item(question: QuestionEnum = Query(..., description="Select a question")):
     return {"selected_question": question}
+
+@app.post("/answer_questions_protected/")
+async def answer_questions(status: models.QuestionStatus, answer: str = None, question: QuestionEnum = Query(..., description="Select question"), current_user: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.username == current_user).first()
+    if user.role == "admin":
+        print(question.value)
+        question_inbase = db.query(models.Questions).filter(models.Questions.question == question.value).all()
+        for q in question_inbase:
+            q.status = status.value 
+            if answer:
+                q.answer = answer
+            db.commit()
+            db.refresh(q)
+        updated_question = db.query(models.Questions).filter(models.Questions.question == question.value).all()
+        return updated_question
+    return {"error": "You're user, not the admin"}
