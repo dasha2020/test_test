@@ -11,7 +11,7 @@ There is one **SUPER ADMIN** and others are **CUSTOMERS**. **CUSTOMERS** can ask
 6. Super_admin can grant customers **ADMIN** access and also change their role back to the **CUSTOMER** 
 
 ### Project Structure: 
-test_test<br/> ├── README.md ├── main.py ├── db<br/> │ ├── database.py │ ├── models.py │ └── userbase.db
+test_test<br/>├── README.md<br/>├── main.py<br/>├── db<br/>│<br/>├── database.<br/>│<br/>├── models.py<br/>│<br/>└── userbase.db
 
 ### To start the application use this line in your terminal: 
 ```
