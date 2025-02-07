@@ -125,12 +125,13 @@ def ask_for_admin_access(request_for_access: Union[bool, None], current_user: st
     user = db.query(models.User).filter(models.User.username == current_user).first()
     if user.role == "customer":
         if request_for_access:
+            user = db.query(models.Grant_Access_Users).filter(models.Grant_Access_Users.username == "null").first()
+            db.delete(user)
+            db.commit()
             user_for_access = models.Grant_Access_Users(username=current_user)
             db.add(user_for_access)
             db.commit()
             db.refresh(user_for_access)
-            user = db.query(models.Grant_Access_Users).filter(models.Grant_Access_Users.username == "null").first()
-            db.delete(user)
             return user_for_access
     return {"error": "You're admin, not the user"}
 
