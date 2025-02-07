@@ -18,6 +18,6 @@ test_test/ ├── README.md ├── main.py ├── db/ │ ├── dat
 uvicorn main:app --reload
 ```
 
-This will start your server and with `/docs` you can test this application. 
+This will start your server and with `/docs` and FastAPI Swagger UI you can test this application. 
 
 Make sure all libraries and packages are installed. 
