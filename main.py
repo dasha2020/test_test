@@ -38,6 +38,12 @@ class UserCreate(BaseModel):
 class QuestionEnum(str, Enum):
     default = "Loading..." 
 
+class UserAccessEnum(str, Enum):
+    default = "Loading..." 
+
+class UserWithAccessEnum(str, Enum):
+    default = "Loading..." 
+
 class QuestionCreate(BaseModel):
     question: str 
 
@@ -58,7 +64,7 @@ def authenticate(username: str, password: str, db: Session):
 
 def create_user(username: str, password: str, db: Session):
     hashed_password = pwd_context.hash(password)
-    db_user = models.User(username=username, password=hashed_password, role="admin")
+    db_user = models.User(username=username, password=hashed_password, role="customer")
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
@@ -114,6 +120,19 @@ def get_all_user_questions(current_user: str = Depends(get_current_user), db: Se
         return all_questions
     return {"error": "You're admin, not the user"}
 
+@app.post("/ask_for_admin_access/")
+def ask_for_admin_access(request_for_access: Union[bool, None], current_user: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.username == current_user).first()
+    if user.role == "customer":
+        if request_for_access:
+            user_for_access = models.Grant_Access_Users(username=current_user)
+            db.add(user_for_access)
+            db.commit()
+            db.refresh(user_for_access)
+            update_users_access_enum(db)
+            return user_for_access
+    return {"error": "You're admin, not the user"}
+
 def get_questions(db: Session):
     return db.query(models.Questions).filter(models.Questions.status != "answered").all()
 
@@ -127,25 +146,53 @@ def update_question_enum(db: Session):
     
     globals()['QuestionEnum'] = Enum('QuestionEnum', question_dict)
 
+def get_user_for_access(db: Session):
+    return db.query(models.Grant_Access_Users).all()
 
-def populate_questions(db: Session):
-    questions = ["What is your name?", "How old are you?", "Where are you from?"]
-    for q in questions:
-        if not db.query(models.Questions).filter(models.Questions.question == q).first():
-            db.add(models.Questions(question=q))
-    db.commit()
+def update_users_access_enum(db: Session):
+    users = get_user_for_access(db)
+    users_dict = {f"{user.id}":user.username for user in users}
+    print("users without access:", users_dict)
+    
+    if not users:
+        user_for_access = models.Grant_Access_Users(username="null")
+        db.add(user_for_access)
+        db.commit()
+        db.refresh(user_for_access)
+        #raise HTTPException(status_code=404, detail="No users found in the database.")
+    
+    globals()['UserAccessEnum'] = Enum('UserAccessEnum', users_dict)
+
+def delete_user_access(db: Session):
+    return db.query(models.User).filter(models.User.role == "admin", models.User.role != "super_admin").all()
+
+def update_users_with_access_enum(db: Session):
+    users = delete_user_access(db)
+    users_dict = {f"{user.id}":user.username for user in users}
+    print("users:", users_dict)
+    
+    if not users:
+        return {"message": "No users with admin role"}
+        #raise HTTPException(status_code=404, detail="No users found in the database.")
+    
+    globals()['UserWithAccessEnum'] = Enum('UserWithAccessEnum', users_dict)
 
 update_question_enum(SessionLocal())
 
+update_users_access_enum(SessionLocal())
+
+update_users_with_access_enum(SessionLocal())
+
 #admin method
-@app.post("/create-item")
-async def create_item(question: QuestionEnum = Query(..., description="Select a question")):
-    return {"selected_question": question}
+
+@app.post("/update_info")
+async def update_info(db: Session = Depends(get_db)):
+    update_question_enum(db)
 
 @app.post("/answer_questions_protected/")
 async def answer_questions(status: models.QuestionStatus, answer: str = None, question: QuestionEnum = Query(..., description="Select question"), current_user: str = Depends(get_current_user), db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.username == current_user).first()
-    if user.role == "admin":
+    if user.role == "admin" or user.role == "super_admin":
         print(question.value)
         question_inbase = db.query(models.Questions).filter(models.Questions.question == question.value).all()
         for q in question_inbase:
@@ -156,4 +203,45 @@ async def answer_questions(status: models.QuestionStatus, answer: str = None, qu
             db.refresh(q)
         updated_question = db.query(models.Questions).filter(models.Questions.question == question.value).all()
         return updated_question
+    return {"error": "You're user, not the admin"}
+
+
+@app.post("/grant_users_access_protected/")
+async def grant_users_access_protected(approve: Union[bool, None], users: UserAccessEnum = Query(..., description="Select user to grant access"), current_user: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.username == current_user).first()
+    
+    if user.role == "super_admin":
+        if approve:
+            user_inbase = db.query(models.User).filter(models.User.username == users.value).first()
+            user_inbase.role = "admin"
+            db.commit()
+            db.refresh(user_inbase)
+            user = db.query(models.Grant_Access_Users).filter(models.Grant_Access_Users.username == users.value).first()
+            db.delete(user)
+            db.commit()
+            updated_user = db.query(models.User).filter(models.User.username == users.value).first()
+            update_users_access_enum(db)
+            update_users_with_access_enum(db)
+            
+            return updated_user
+        else:
+            return {"message": "User was denied in the access"}
+    return {"error": "You're user or admin, not the super admin"}
+
+@app.post("/discard_users_access_protected/")
+async def discard_users_access_protected(change_admin_to_user_role: Union[bool, None], users: UserWithAccessEnum = Query(..., description="Select user to discard access"), current_user: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.username == current_user).first()
+    
+    if user.role == "super_admin":
+        if change_admin_to_user_role:
+            user_inbase = db.query(models.User).filter(models.User.username == users.value).first()
+            user_inbase.role = "customer"
+            db.commit()
+            db.refresh(user_inbase)
+            updated_user = db.query(models.User).filter(models.User.username == users.value).first()
+            update_users_with_access_enum(db)
+            update_users_access_enum(db)
+            return updated_user
+        else:
+            return {"message": "User was left with admin access"}
     return {"error": "You're user, not the admin"}

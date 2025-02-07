@@ -37,3 +37,9 @@ class Questions(Base):
     question = Column(String)
     status = Column(String, default="unread")
     answer = Column(String, default="No answer")
+
+class Grant_Access_Users(Base):
+    __tablename__ = "access"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True)
