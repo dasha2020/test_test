@@ -4,10 +4,6 @@ from .database import Base
 from enum import Enum
 
 
-class Role(str, Enum):
-    customer = "customer"
-    admin = "admin"
-
 
 class QuestionStatus(str, Enum):
     read = "read"
@@ -22,12 +18,6 @@ class User(Base):
     username = Column(String, unique=True)
     password = Column(String, unique=True)
     role = Column(String, default="customer")
-
-class QuestionDB(Base):
-    __tablename__ = 'questions'
-    
-    id = Column(Integer, primary_key=True, index=True)
-    question_text = Column(String)
 
 class Questions(Base):
     __tablename__ = 'questions_users'

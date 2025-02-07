@@ -129,7 +129,8 @@ def ask_for_admin_access(request_for_access: Union[bool, None], current_user: st
             db.add(user_for_access)
             db.commit()
             db.refresh(user_for_access)
-            update_users_access_enum(db)
+            user = db.query(models.Grant_Access_Users).filter(models.Grant_Access_Users.username == "null").first()
+            db.delete(user)
             return user_for_access
     return {"error": "You're admin, not the user"}
 
@@ -159,7 +160,6 @@ def update_users_access_enum(db: Session):
         db.add(user_for_access)
         db.commit()
         db.refresh(user_for_access)
-        #raise HTTPException(status_code=404, detail="No users found in the database.")
     
     globals()['UserAccessEnum'] = Enum('UserAccessEnum', users_dict)
 
@@ -173,7 +173,6 @@ def update_users_with_access_enum(db: Session):
     
     if not users:
         return {"message": "No users with admin role"}
-        #raise HTTPException(status_code=404, detail="No users found in the database.")
     
     globals()['UserWithAccessEnum'] = Enum('UserWithAccessEnum', users_dict)
 
@@ -220,8 +219,6 @@ async def grant_users_access_protected(approve: Union[bool, None], users: UserAc
             db.delete(user)
             db.commit()
             updated_user = db.query(models.User).filter(models.User.username == users.value).first()
-            update_users_access_enum(db)
-            update_users_with_access_enum(db)
             
             return updated_user
         else:
@@ -239,8 +236,6 @@ async def discard_users_access_protected(change_admin_to_user_role: Union[bool, 
             db.commit()
             db.refresh(user_inbase)
             updated_user = db.query(models.User).filter(models.User.username == users.value).first()
-            update_users_with_access_enum(db)
-            update_users_access_enum(db)
             return updated_user
         else:
             return {"message": "User was left with admin access"}
